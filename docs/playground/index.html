@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>body{margin:0}[hidden]{display:none!important}</style></head><body>
+<title>Heat Sink Playground</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: an instrument bench. Big 3D stage left, readouts + controls right, two physics charts below, method notes last. */
+:root {
+  --bg: #e9edf1; --panel: #ffffff; --ink: #14202b; --muted: #5a6876; --line: #d2d9e0;
+  --stage: #dfe5eb; --accent: #d9480f; --good: #2b8a3e; --bad: #c92a2a; --track: #c9d2db;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1318; --panel: #151c23; --ink: #e4ebf1; --muted: #8b99a6; --line: #26323d;
+  --stage: #0a0f13; --accent: #ff7a2e; --good: #51cf66; --bad: #ff6b6b; --track: #2c3843; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e1318; --panel: #151c23; --ink: #e4ebf1; --muted: #8b99a6; --line: #26323d;
+  --stage: #0a0f13; --accent: #ff7a2e; --good: #51cf66; --bad: #ff6b6b; --track: #2c3843; color-scheme: dark }
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 40px }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 18px }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 4.4vw, 44px); line-height: 1; margin: 0; letter-spacing: .01em; text-wrap: balance }
+.sub { color: var(--muted); margin: 6px 0 0; max-width: 62ch }
+.spec { font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 14px }
+.spec b { color: var(--ink); font-weight: 500 }
+.main { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 18px; align-items: start }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr) } }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; aspect-ratio: 4 / 3; max-width: 100% }
+#view { position: absolute; inset: 0; width: 100%; height: 100% }
+.legend { position: absolute; left: 12px; bottom: 12px; font-family: var(--mono); font-size: 11px; color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 82%, transparent); padding: 8px 10px; border-radius: 4px; display: grid; gap: 4px }
+.legend .bar { width: 160px; height: 8px; border-radius: 2px; background: linear-gradient(90deg, #30123b, #4662d7, #36aaf9, #1ae4b6, #72fe5e, #c8ef34, #faba39, #f66b19, #ca2a04, #ffffff) }
+.legend .ticks { display: flex; justify-content: space-between }
+.flow { position: absolute; right: 12px; top: 12px; font-family: var(--mono); font-size: 11px; color: var(--muted) }
+.hint { position: absolute; right: 12px; bottom: 12px; font-size: 11px; color: var(--muted) }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: grid; gap: 16px; min-width: 0 }
+.lbl { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+.hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap }
+.tj { font-family: var(--display); font-weight: 600; font-size: 64px; line-height: .9; font-variant-numeric: tabular-nums }
+.tj small { font-size: 28px; color: var(--muted); font-weight: 500 }
+.pill { font-family: var(--mono); font-size: 12px; padding: 4px 9px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap }
+.pill.good { color: var(--good) } .pill.bad { color: var(--bad) }
+.reads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px }
+.reads div { display: grid; gap: 1px; min-width: 0 }
+.reads .v { font-family: var(--mono); font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap }
+.reads .v.warn { color: var(--bad) }
+.rbar { display: flex; height: 14px; border-radius: 3px; overflow: hidden; background: var(--track) }
+.rbar span { display: block; height: 100% }
+.rkey { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); margin-top: 6px }
+.rkey i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px }
+.seg { display: flex; flex-wrap: wrap; gap: 6px }
+.seg button, .btn { font: 500 13px var(--body); color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer }
+.seg button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent) }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.sliders { display: grid; gap: 12px }
+.sl { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center }
+.sl label { font-size: 13px } .sl output { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums }
+.sl input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent) }
+.actions { display: flex; flex-wrap: wrap; gap: 8px }
+.note { font-size: 12px; color: var(--muted); margin: 0 }
+.charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px }
+@media (max-width: 760px) { .charts { grid-template-columns: minmax(0, 1fr) } }
+.chart { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 14px 8px; min-width: 0 }
+.chart h2 { font-family: var(--display); font-weight: 600; font-size: 22px; margin: 0 0 2px; letter-spacing: .01em }
+.chart p { margin: 0 0 6px; font-size: 13px; color: var(--muted) }
+.chart svg { width: 100%; height: auto; display: block }
+.chart text { font-family: var(--mono); font-size: 10px; fill: var(--muted) }
+.method { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px 28px; font-size: 13.5px; color: var(--muted) }
+.method h3 { font-family: var(--display); font-size: 19px; font-weight: 600; color: var(--ink); margin: 0 0 4px }
+.method p { margin: 0; max-width: 62ch }
+.modes { display: flex; gap: 0; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; width: max-content; max-width: 100% }
+.modes button { font: 600 13px var(--body); color: var(--muted); background: transparent; border: 0; padding: 7px 14px; cursor: pointer }
+.modes button[aria-pressed="true"] { background: var(--ink); color: var(--panel) }
+.game { display: grid; gap: 10px; border: 1px dashed var(--accent); border-radius: 6px; padding: 12px }
+.game h3 { font-family: var(--display); font-size: 22px; font-weight: 600; margin: 0 }
+.game p { margin: 0; font-size: 13px; color: var(--muted) }
+.log { display: grid; gap: 4px; font-family: var(--mono); font-size: 12.5px; margin: 0; padding: 0; list-style: none }
+.log li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--line); padding: 4px 0 }
+.log li .bad { color: var(--bad) }
+.reveal { display: grid; gap: 6px }
+.rrow { display: grid; grid-template-columns: 9.5em minmax(0, 1fr) 5.2em; align-items: center; gap: 8px; font-size: 12.5px }
+.rrow .track { display: block; height: 12px; background: var(--track); border-radius: 2px; overflow: hidden }
+.rrow .fill { display: block; height: 100%; background: var(--muted) }
+.rrow.you .fill { background: var(--accent) } .rrow.you { font-weight: 600 }
+.rrow .num { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums }
+.rsub { font-size: 11.5px; color: var(--muted); margin: 0 }
+.hidden-mode .tj, .hidden-mode .reads .v { filter: blur(7px); user-select: none }
+.charts.locked { position: relative }
+.charts.locked .chart > svg, .charts.locked .chart > p { filter: blur(8px); opacity: .5 }
+.lockmsg { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-size: 22px; font-weight: 600; color: var(--ink); pointer-events: none }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Heat Sink Playground</h1>
+      <p class="sub">Add fins and the chip cools, until the gaps get so narrow the fan can barely push air through. Drag the sliders to find the cliff.</p>
+    </div>
+    <div class="spec"><span>footprint <b>60 × 60 mm</b></span><span>chip <b>20 × 20 mm, 60 W</b></span><span>inlet <b>35 °C</b></span><span>limit <b>85 °C</b></span><span>aluminum</span></div>
+  </header>
+
+  <section class="main">
+    <div class="stage">
+      <canvas id="view" aria-label="3D heat sink colored by temperature"></canvas>
+      <div class="flow" id="flowtag">airflow →</div>
+      <div class="legend" aria-hidden="true"><div class="bar"></div><div class="ticks"><span>35</span><span>–</span><span>–</span><span>– °C</span></div></div>
+      <div class="hint">drag to orbit</div>
+    </div>
+
+    <div class="panel" id="panel">
+      <div class="modes" role="group" aria-label="Mode"><button type="button" id="m-explore" aria-pressed="true">Explore</button><button type="button" id="m-game" aria-pressed="false">Beat the AI</button></div>
+      <div class="game" id="game" hidden>
+        <h3 id="g-title">Three tests. Beat the AI.</h3>
+        <p id="g-intro">Find the coolest chip using at most 3 tests, under a 150 g metal budget. Temperatures stay hidden until you test. AI models and a simple script got the same starting design and the same equations.</p>
+        <ol class="log" id="g-log"></ol>
+        <div class="actions"><button class="btn primary" id="g-test">Run test 1 of 3</button><button class="btn" id="g-quit">Quit</button></div>
+        <div class="reveal" id="g-reveal" hidden></div>
+      </div>
+      <div class="hero">
+        <div><div class="lbl">Chip temperature</div><div class="tj" id="tj">–<small> °C</small></div></div>
+        <span class="pill good" id="status">Under 85 °C limit</span>
+      </div>
+      <div class="reads">
+        <div><span class="lbl">Mass</span><span class="v" id="r-mass">–</span></div>
+        <div><span class="lbl">Airflow</span><span class="v" id="r-flow">–</span></div>
+        <div><span class="lbl">Pressure drop</span><span class="v" id="r-dp">–</span></div>
+        <div><span class="lbl">Fin gap</span><span class="v" id="r-gap">–</span></div>
+        <div><span class="lbl">Fin efficiency</span><span class="v" id="r-eta">–</span></div>
+        <div><span class="lbl">Air speed in gaps</span><span class="v" id="r-vel">–</span></div>
+      </div>
+      <div>
+        <div class="lbl" style="margin-bottom:6px">Where the 85 °C budget goes (chip → air)</div>
+        <div class="rbar" id="rbar"></div>
+        <div class="rkey" id="rkey"></div>
+      </div>
+      <div>
+        <div class="lbl" style="margin-bottom:6px">Coolant and fan</div>
+        <div class="seg" id="envs"></div>
+      </div>
+      <div class="sliders">
+        <div class="sl"><label for="sN">Number of fins</label><output id="oN"></output><input type="range" id="sN" min="2" max="60" step="1"></div>
+        <div class="sl"><label for="st">Fin thickness</label><output id="ot"></output><input type="range" id="st" min="0.3" max="3" step="0.05"></div>
+        <div class="sl"><label for="sH">Fin height</label><output id="oH"></output><input type="range" id="sH" min="5" max="38" step="0.5"></div>
+        <div class="sl"><label for="sb">Base thickness</label><output id="ob"></output><input type="range" id="sb" min="2" max="10" step="0.25"></div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="best">Find best design</button>
+        <button class="btn" id="choke">Pack 55 fins</button>
+        <button class="btn" id="sparse">Try 6 fins</button>
+      </div>
+      <p class="note" id="bestnote">"Find best" searches about 20,000 designs with the same equations, under a 150 g metal budget and a 40 mm height limit.</p>
+    </div>
+  </section>
+
+  <section class="charts" id="charts">
+    <div class="chart">
+      <h2>The fin-count cliff</h2>
+      <p>Chip temperature for every fin count, keeping your other settings. The dot is your design.</p>
+      <svg id="c1" viewBox="0 0 420 240" role="img" aria-label="Chip temperature versus number of fins"></svg>
+    </div>
+    <div class="chart">
+      <h2>Fan vs. fins</h2>
+      <p>The fan pushes less air as resistance rises. Airflow settles where the fan curve meets the fins' resistance curve.</p>
+      <svg id="c2" viewBox="0 0 420 240" role="img" aria-label="Fan curve and heat sink resistance curve"></svg>
+    </div>
+  </section>
+
+  <section class="method">
+    <div><h3>What's computing this</h3><p>Textbook correlations, not CFD: Teertstra's channel heat transfer model, Muzychka–Yovanovich duct friction with entrance and exit losses, the fan's pressure–flow curve, fin efficiency, and Song–Lee–Au spreading resistance. Each design takes well under a millisecond, so everything updates as you drag.</p></div>
+    <div><h3>How the colors are drawn</h3><p>Fin colors follow the 1D fin equation, T(z) = T<sub>air</sub> + (T<sub>root</sub> − T<sub>air</sub>)·cosh(m(H − z))/cosh(mH). The color scale runs from the 35 °C inlet to the chip temperature. The base plate glow is an approximation of heat spreading out from the chip. Air streaks slow down as the gaps choke.</p></div>
+    <div><h3>What it leaves out</h3><p>Fully ducted flow (no air bypassing the fins), uniform air properties, no radiation, and laminar-to-developing flow only. Good for trends and first sizing; a real design still gets a CFD run or a wind-tunnel test.</p></div>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// Closed-form plate-fin heat sink model (same as model.py). Textbook correlations, not CFD.
+const HS = (() => {
+  const W = 0.060, L = 0.060, SRC = 0.020, Q = 60.0, T_AMB = 35.0, R_JC_TIM = 0.35, T_LIMIT = 85.0;
+  const H_MAX_TOTAL = 0.040, K_AL = 200.0, RHO_AL = 2700.0, RHO = 1.13, CP = 1007.0, MASS_CAP = 150;
+  const ENVS = {
+    normal:  { label: 'Air, standard fan', mu: 1.9e-5, k: 0.027, dp0: 80.0,  v0: 0.012 },
+    thick:   { label: 'Thick fluid (10× viscosity)', mu: 1.9e-4, k: 0.027, dp0: 80.0, v0: 0.012 },
+    weakfan: { label: 'Weak high-flow fan', mu: 1.9e-5, k: 0.027, dp0: 8.0, v0: 0.025 },
+    blower:  { label: 'High-pressure blower', mu: 1.9e-5, k: 0.027, dp0: 600.0, v0: 0.004 },
+  };
+  function fRe(lam) {
+    lam = Math.min(lam, 1 / lam);
+    return 24 * (1 - 1.3553 * lam + 1.9467 * lam ** 2 - 1.7012 * lam ** 3 + 0.9564 * lam ** 4 - 0.2537 * lam ** 5);
+  }
+  function system(N, t, H, env) {
+    const E = ENVS[env], nu = E.mu / RHO;
+    const s = (W - N * t) / (N - 1), Ach = (N - 1) * s * H, Dh = 2 * s * H / (s + H);
+    const sigma = 1 - N * t / W, Kc = 0.42 * (1 - sigma ** 2), Ke = (1 - sigma ** 2) ** 2, lam = s / H;
+    const dp = Vd => {
+      const V = Vd / Ach, Re = V * Dh / nu, Ls = L / (Dh * Re);
+      const fapp = Math.sqrt((3.44 / Math.sqrt(Ls)) ** 2 + fRe(lam) ** 2) / Re;
+      return (fapp * 4 * L / Dh + Kc + Ke) * 0.5 * RHO * V ** 2;
+    };
+    const fan = Vd => E.dp0 * (1 - Vd / E.v0);
+    return { s, Ach, dp, fan };
+  }
+  function evaluate(N, t, H, tb, env = 'normal') {
+    N = Math.round(N);
+    const E = ENVS[env], mu = E.mu, nu = mu / RHO, k = E.k, PR = mu * CP / k;
+    const s = N > 1 ? (W - N * t) / (N - 1) : W;
+    const out = { N, t, H, tb, s, env };
+    if (N < 2 || s <= 5e-5 || H + tb > H_MAX_TOTAL + 1e-12) return Object.assign(out, { Tj: Infinity, ok: false });
+    const sys = system(N, t, H, env);
+    let lo = 1e-9, hi = E.v0;                       // bisection for fan = system
+    for (let i = 0; i < 80; i++) { const m = 0.5 * (lo + hi); (sys.fan(m) - sys.dp(m) > 0) ? lo = m : hi = m; }
+    const Vdot = 0.5 * (lo + hi), dP = sys.fan(Vdot), V = Vdot / sys.Ach;
+    const Res = V * s / nu * s / L;
+    const Nu = ((Res * PR / 2) ** -3 + (0.664 * Math.sqrt(Res) * PR ** (1 / 3) * Math.sqrt(1 + 3.65 / Math.sqrt(Res))) ** -3) ** (-1 / 3);
+    const h = Nu * k / s, m = Math.sqrt(2 * h / (K_AL * t)), eta = Math.tanh(m * H) / (m * H);
+    const R_conv = 1 / (h * (N * eta * 2 * H * L + (N - 1) * s * L));
+    const R_air = 1 / (2 * RHO * Vdot * CP), R_base = tb / (K_AL * W * L);
+    const a = Math.sqrt(SRC ** 2 / Math.PI), b = Math.sqrt(W * L / Math.PI), eps = a / b, tau = tb / b;
+    const Bi = (1 / (R_conv * W * L)) * b / K_AL, lc = Math.PI + 1 / (Math.sqrt(Math.PI) * eps);
+    const phi = (Math.tanh(lc * tau) + lc / Bi) / (1 + lc / Bi * Math.tanh(lc * tau));
+    // Song-Lee-Au total already includes 1-D base conduction (tb/kWL); split it out so the bars don't count it twice
+    const R_sp = (eps * tau / Math.sqrt(Math.PI) + (1 - eps) * phi / Math.sqrt(Math.PI)) / (K_AL * a * Math.sqrt(Math.PI)) - R_base;
+    const R_tot = R_JC_TIM + R_sp + R_base + R_conv + R_air, Tj = T_AMB + Q * R_tot;
+    const mass = RHO_AL * (W * L * tb + N * t * H * L) * 1000;
+    const T_air = T_AMB + Q * R_air, T_finbase = T_air + Q * R_conv, T_plate = T_finbase + Q * R_base;
+    return Object.assign(out, { Tj, ok: true, mass, dP, Vdot, V, h, eta, m, R_conv, R_sp, R_air, R_base, R_tot,
+      T_air, T_finbase, T_plate, T_spot: T_plate + Q * R_sp });
+  }
+  return { W, L, SRC, Q, T_AMB, T_LIMIT, H_MAX_TOTAL, MASS_CAP, ENVS, evaluate, system };
+})();
+if (typeof module !== 'undefined') module.exports = HS;
+
+</script>
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const state = { N: 14, t: 1.0, H: 30, tb: 6, env: 'normal' };
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---------- color map (turbo-like) ----------
+const STOPS = ['#30123b', '#4662d7', '#36aaf9', '#1ae4b6', '#72fe5e', '#c8ef34', '#faba39', '#f66b19', '#ca2a04', '#ffffff'].map(h => new THREE.Color(h));
+const T_LO = 35; let T_HI = 125;
+let hidden = false; const ALU = new THREE.Color('#9aa3ab');
+function heat(T, out) {
+  if (hidden) return out.copy(ALU);
+  let x = (T - T_LO) / (T_HI - T_LO) * (STOPS.length - 2);
+  if (!isFinite(x)) x = STOPS.length - 1;
+  x = Math.max(0, Math.min(STOPS.length - 1, x));
+  const i = Math.min(STOPS.length - 2, Math.floor(x)), f = x - i;
+  return out.copy(STOPS[i]).lerp(STOPS[i + 1], f);
+}
+
+// ---------- three.js stage ----------
+const canvas = $('view');
+let renderer = null, scene, camera, controls, sinkGroup, particles, pGeo, pSpeed = 0, gapCenters = [], reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+try {
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(35, 4 / 3, 1, 2000);
+  camera.position.set(95, 80, 115);
+  controls = new THREE.OrbitControls(camera, canvas);
+  controls.target.set(0, 12, 0); controls.enableDamping = true; controls.enablePan = false; controls.minDistance = 70; controls.maxDistance = 320;
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x445566, 0.75));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.55); dl.position.set(60, 120, 80); scene.add(dl);
+  sinkGroup = new THREE.Group(); scene.add(sinkGroup);
+} catch (e) { renderer = null; }
+
+function resize() {
+  if (!renderer) return;
+  const r = canvas.parentElement.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+
+function clearGroup(g) { while (g.children.length) { const c = g.children.pop(); c.geometry && c.geometry.dispose(); c.material && c.material.dispose(); } }
+
+function build(r) {
+  T_HI = Math.max(80, Math.min(400, isFinite(r.Tj) ? r.Tj : 400));
+  const ticks = document.querySelectorAll('.legend .ticks span');
+  [0, 1/3, 2/3, 1].forEach((f, i) => ticks[i].textContent = Math.round(T_LO + f * (T_HI - T_LO)) + (i === 3 ? ' °C' : ''));
+  if (!renderer) return;
+  clearGroup(sinkGroup);
+  const W = 60, L = 60, H = state.H, tb = state.tb, t = state.t, N = state.N;
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const c = new THREE.Color();
+  // base plate: approximate spreading glow around the chip footprint
+  const bg = new THREE.BoxGeometry(W, tb, L, 30, 2, 30), bp = bg.attributes.position, bcol = [];
+  for (let i = 0; i < bp.count; i++) {
+    const x = bp.getX(i), z = bp.getZ(i), rr = Math.sqrt(x * x + z * z);
+    const T = r.T_plate + (r.T_spot - r.T_plate) * Math.exp(-((rr / 14) ** 2));
+    heat(T, c); bcol.push(c.r, c.g, c.b);
+  }
+  bg.setAttribute('color', new THREE.Float32BufferAttribute(bcol, 3));
+  const base = new THREE.Mesh(bg, mat); base.position.y = tb / 2; sinkGroup.add(base);
+  // chip
+  const chip = new THREE.Mesh(new THREE.BoxGeometry(20, 2.5, 20), new THREE.MeshLambertMaterial({ color: heat(r.Tj, new THREE.Color()) }));
+  chip.position.y = -1.25; sinkGroup.add(chip);
+  // fins: 1D fin equation along height (insulated tip)
+  const s = (W - N * t) / (N - 1), mH = r.m * H / 1000;
+  const fg = new THREE.BoxGeometry(t, H, L, 1, 16, 1), fp = fg.attributes.position, fcol = [];
+  for (let i = 0; i < fp.count; i++) {
+    const z = (fp.getY(i) + H / 2) / H; // 0 at root, 1 at tip
+    const T = r.T_air + (r.T_finbase - r.T_air) * Math.cosh(mH * (1 - z)) / Math.cosh(mH);
+    heat(T, c); fcol.push(c.r, c.g, c.b);
+  }
+  fg.setAttribute('color', new THREE.Float32BufferAttribute(fcol, 3));
+  gapCenters = [];
+  for (let k = 0; k < N; k++) {
+    const x = -W / 2 + t / 2 + k * (s + t);
+    const fin = new THREE.Mesh(k === 0 ? fg : fg, mat); fin.position.set(x, tb + H / 2, 0); sinkGroup.add(fin);
+    if (k < N - 1) gapCenters.push(x + t / 2 + s / 2);
+  }
+  // air streaks through the gaps
+  const P = 260, pos = new Float32Array(P * 3), col = new Float32Array(P * 3);
+  for (let i = 0; i < P; i++) {
+    const g = gapCenters[i % gapCenters.length];
+    pos[i * 3] = g; pos[i * 3 + 1] = tb + 2 + Math.random() * (H - 3); pos[i * 3 + 2] = -L / 2 - 10 + Math.random() * (L + 20);
+  }
+  pGeo = new THREE.BufferGeometry();
+  pGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  pGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  particles = new THREE.Points(pGeo, new THREE.PointsMaterial({ size: 1.4, vertexColors: true, transparent: true, opacity: 0.85 }));
+  sinkGroup.add(particles);
+  pSpeed = Math.min(80, r.V * 12); // mm per frame-second scale, visual only
+  sinkGroup.userData = { r, L };
+  sinkGroup.position.y = -(tb + H) / 2 + 8;
+}
+const tmpC = new THREE.Color();
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (renderer) {
+    if (pGeo && !reduce) {
+      const p = pGeo.attributes.position, cl = pGeo.attributes.color, { r, L } = sinkGroup.userData;
+      for (let i = 0; i < p.count; i++) {
+        let z = p.getZ(i) + pSpeed * dt * (0.8 + 0.4 * ((i * 37) % 10) / 10);
+        if (z > L / 2 + 10) z = -L / 2 - 10;
+        p.setZ(i, z);
+        const f = Math.max(0, Math.min(1, (z + L / 2) / L));
+        heat(35 + f * 2 * (r.T_air - 35), tmpC); cl.setXYZ(i, tmpC.r, tmpC.g, tmpC.b);
+      }
+      p.needsUpdate = true; cl.needsUpdate = true;
+    }
+    controls.update(); renderer.render(scene, camera);
+  }
+  requestAnimationFrame(loop);
+}
+
+// ---------- readouts ----------
+const SEGS = [['R_jc', 'Chip and paste', '#8d99a6'], ['R_sp', 'Spreading', '#7048e8'], ['R_base', 'Base', '#1c7ed6'], ['R_conv', 'Fins to air', '#f08c00'], ['R_air', 'Air warming up', '#e03131']];
+function readouts(r) {
+  const fmt = (v, d) => isFinite(v) ? v.toFixed(d) : '–';
+  $('tj').innerHTML = (isFinite(r.Tj) && r.Tj < 999 ? fmt(r.Tj, 1) : '999+') + '<small> °C</small>';
+  const over = !(r.Tj <= HS.T_LIMIT);
+  $('status').className = 'pill ' + (over ? 'bad' : 'good');
+  $('status').textContent = over ? `Over the ${HS.T_LIMIT} °C limit` : `Under the ${HS.T_LIMIT} °C limit`;
+  $('r-mass').textContent = fmt(r.mass, 0) + ' g'; $('r-mass').classList.toggle('warn', r.mass > HS.MASS_CAP);
+  $('r-flow').textContent = fmt(r.Vdot * 1000, 2) + ' L/s';
+  $('r-dp').textContent = fmt(r.dP, 1) + ' Pa';
+  $('r-gap').textContent = fmt(r.s * 1000, 2) + ' mm'; $('r-gap').classList.toggle('warn', r.s < 0.8e-3);
+  $('r-eta').textContent = fmt(r.eta * 100, 0) + ' %';
+  $('r-vel').textContent = fmt(r.V, 1) + ' m/s';
+  const vals = { R_jc: 0.35, R_sp: r.R_sp, R_base: r.R_base, R_conv: r.R_conv, R_air: r.R_air };
+  const tot = Object.values(vals).reduce((a, b) => a + b, 0);
+  $('rbar').innerHTML = SEGS.map(([k, , c]) => `<span style="width:${(vals[k] / tot * 100).toFixed(2)}%;background:${c}" title="${k}"></span>`).join('');
+  $('rkey').innerHTML = SEGS.map(([k, n, c]) => `<span><i style="background:${c}"></i>${n} ${(HS.Q * vals[k]).toFixed(1)} °C</span>`).join('');
+  $('flowtag').textContent = `airflow → ${fmt(r.Vdot * 1000, 2)} L/s`;
+}
+
+// ---------- charts (SVG) ----------
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs, parent, text) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; parent && parent.appendChild(e); return e; }
+const BOX = { x0: 44, x1: 408, y0: 14, y1: 206 };
+function axes(svg, xs, ys, xt, yt, xl, yl) {
+  const ink = css('--line'), mut = css('--muted');
+  for (const v of yt) { const y = ys(v); el('line', { x1: BOX.x0, x2: BOX.x1, y1: y, y2: y, stroke: ink, 'stroke-width': 1 }, svg); el('text', { x: BOX.x0 - 6, y: y + 3, 'text-anchor': 'end' }, svg, v); }
+  for (const v of xt) { const x = xs(v); el('text', { x, y: BOX.y1 + 14, 'text-anchor': 'middle' }, svg, v); }
+  el('text', { x: (BOX.x0 + BOX.x1) / 2, y: 236, 'text-anchor': 'middle' }, svg, xl);
+  el('text', { x: 10, y: (BOX.y0 + BOX.y1) / 2, transform: `rotate(-90 10 ${(BOX.y0 + BOX.y1) / 2})`, 'text-anchor': 'middle' }, svg, yl);
+}
+function chart1() {
+  const svg = $('c1'); svg.innerHTML = '';
+  const t = state.t / 1000, H = state.H / 1000, tb = state.tb / 1000, pts = [];
+  for (let N = 2; N <= 60; N++) { const r = HS.evaluate(N, t, H, tb, state.env); if (r.ok) pts.push([N, r.Tj]); }
+  const yMin = 60, yMax = 180;
+  const xs = N => BOX.x0 + (N - 2) / 58 * (BOX.x1 - BOX.x0), ys = T => BOX.y1 - (Math.min(yMax, Math.max(yMin, T)) - yMin) / (yMax - yMin) * (BOX.y1 - BOX.y0);
+  el('rect', { x: BOX.x0, y: BOX.y0, width: BOX.x1 - BOX.x0, height: ys(HS.T_LIMIT) - BOX.y0, fill: css('--bad'), opacity: 0.07 }, svg);
+  axes(svg, xs, ys, [2, 10, 20, 30, 40, 50, 60], [60, 85, 120, 150, 180], 'number of fins', 'chip °C');
+  el('line', { x1: BOX.x0, x2: BOX.x1, y1: ys(85), y2: ys(85), stroke: css('--bad'), 'stroke-dasharray': '4 3', 'stroke-width': 1.2 }, svg);
+  el('text', { x: BOX.x1, y: ys(85) - 5, 'text-anchor': 'end', style: `fill:${css('--bad')}` }, svg, '85 °C limit');
+  if (pts.length) {
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + xs(p[0]).toFixed(1) + ' ' + ys(p[1]).toFixed(1)).join(' ');
+    el('path', { d, fill: 'none', stroke: css('--accent'), 'stroke-width': 2.2, 'stroke-linejoin': 'round' }, svg);
+    const best = pts.reduce((a, b) => b[1] < a[1] ? b : a);
+    el('circle', { cx: xs(best[0]), cy: ys(best[1]), r: 3.5, fill: css('--panel'), stroke: css('--accent'), 'stroke-width': 1.5 }, svg);
+    el('text', { x: xs(best[0]), y: ys(best[1]) + 16, 'text-anchor': 'middle' }, svg, `best: ${best[0]} fins`);
+    const lastN = pts[pts.length - 1][0];
+    if (lastN < 60) el('text', { x: BOX.x1, y: BOX.y0 + 12, 'text-anchor': 'end' }, svg, `${lastN + 1}+ fins won't fit`);
+  }
+  const cur = HS.evaluate(state.N, t, H, tb, state.env);
+  if (cur.ok) el('circle', { cx: xs(state.N), cy: ys(cur.Tj), r: 6, fill: css('--ink') }, svg);
+}
+function chart2(r) {
+  const svg = $('c2'); svg.innerHTML = '';
+  const E = HS.ENVS[state.env]; if (!r.ok) return;
+  const sys = HS.system(state.N, state.t / 1000, state.H / 1000, state.env);
+  const vMax = E.v0 * 1000, pMax = E.dp0 * 1.15;
+  const xs = v => BOX.x0 + v / vMax * (BOX.x1 - BOX.x0), ys = p => BOX.y1 - Math.min(pMax, p) / pMax * (BOX.y1 - BOX.y0);
+  const nice = m => { const s = [1, 2, 2.5, 5, 10]; const e = 10 ** Math.floor(Math.log10(m / 4)); return s.map(k => k * e).find(k => m / k <= 5) || e * 10; };
+  const xt = [], yt = []; for (let v = 0; v <= vMax + 1e-9; v += nice(vMax)) xt.push(+v.toFixed(2)); for (let p = 0; p <= pMax; p += nice(pMax)) yt.push(+p.toFixed(1));
+  axes(svg, xs, ys, xt, yt, 'airflow, L/s', 'pressure, Pa');
+  el('path', { d: `M${xs(0)} ${ys(E.dp0)} L${xs(vMax)} ${ys(0)}`, stroke: css('--muted'), 'stroke-width': 2, fill: 'none' }, svg);
+  el('text', { x: xs(vMax * 0.72), y: ys(E.dp0 * 0.28) - 8 }, svg, 'fan');
+  const pts = []; for (let i = 1; i <= 60; i++) { const v = vMax * i / 60; const p = sys.dp(v / 1000); pts.push([v, p]); if (p > pMax) break; }
+  el('path', { d: pts.map((p, i) => (i ? 'L' : 'M') + xs(p[0]).toFixed(1) + ' ' + ys(p[1]).toFixed(1)).join(' '), stroke: css('--accent'), 'stroke-width': 2.2, fill: 'none' }, svg);
+  const lp = pts[pts.length - 1]; el('text', { x: Math.min(BOX.x1 - 4, xs(lp[0]) + 4), y: ys(lp[1]) + 12, 'text-anchor': xs(lp[0]) > BOX.x1 - 60 ? 'end' : 'start' }, svg, 'your fins');
+  el('circle', { cx: xs(r.Vdot * 1000), cy: ys(r.dP), r: 6, fill: css('--ink') }, svg);
+  el('text', { x: xs(r.Vdot * 1000) + 9, y: ys(r.dP) - 8 }, svg, `${(r.Vdot * 1000).toFixed(2)} L/s at ${r.dP.toFixed(0)} Pa`);
+}
+
+// ---------- controls ----------
+const S = { N: $('sN'), t: $('st'), H: $('sH'), tb: $('sb') };
+function syncInputs() {
+  S.N.value = state.N; S.t.value = state.t; S.H.value = state.H; S.tb.value = state.tb;
+  S.H.max = Math.min(38, 40 - state.tb);
+  $('oN').textContent = state.N; $('ot').textContent = state.t.toFixed(2) + ' mm'; $('oH').textContent = state.H.toFixed(1) + ' mm'; $('ob').textContent = state.tb.toFixed(2) + ' mm';
+}
+function fixGeometry() {
+  state.H = Math.min(state.H, 40 - state.tb);
+  const maxN = Math.floor((60 + 0.05) / (state.t + 0.05)); // leave >= 0.05 mm gap
+  if (state.N > maxN) state.N = maxN;
+}
+function update() {
+  fixGeometry(); syncInputs();
+  const r = HS.evaluate(state.N, state.t / 1000, state.H / 1000, state.tb / 1000, state.env);
+  readouts(r); chart1(); chart2(r); build(r);
+}
+S.N.addEventListener('input', () => { state.N = +S.N.value; update(); });
+S.t.addEventListener('input', () => { state.t = +S.t.value; update(); });
+S.H.addEventListener('input', () => { state.H = +S.H.value; update(); });
+S.tb.addEventListener('input', () => { state.tb = +S.tb.value; update(); });
+const envBox = $('envs');
+for (const [k, E] of Object.entries(HS.ENVS)) {
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = E.label; b.id = 'env-' + k;
+  b.setAttribute('aria-pressed', k === state.env); b.addEventListener('click', () => { state.env = k; [...envBox.children].forEach(x => x.setAttribute('aria-pressed', x === b)); update(); });
+  envBox.appendChild(b);
+}
+function search(env) {
+  let best = null;
+  for (let N = 2; N <= 60; N++) for (let ti = 0; ti <= 18; ti++) { const t = 0.3 + ti * 0.05;
+    if (N * t > 59.5) continue;
+    for (let bi = 0; bi <= 16; bi++) { const tb = 2 + bi * 0.5;
+      for (const fr of [1, 0.85, 0.7]) { const H = Math.min(38, (40 - tb) * fr);
+        const r = HS.evaluate(N, t / 1000, H / 1000, tb / 1000, env);
+        if (r.ok && r.mass <= HS.MASS_CAP && (!best || r.Tj < best.Tj)) best = { N, t, H, tb, Tj: r.Tj };
+      } } }
+  return best;
+}
+function animateTo(target, ms = 900) {
+  const from = { ...state }, t0 = performance.now();
+  const step = now => {
+    const f = reduce ? 1 : Math.min(1, (now - t0) / ms), e = 1 - (1 - f) ** 3;
+    state.N = Math.round(from.N + (target.N - from.N) * e); state.t = from.t + (target.t - from.t) * e;
+    state.tb = from.tb + (target.tb - from.tb) * e; state.H = from.H + (target.H - from.H) * e;
+    update(); if (f < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+$('best').addEventListener('click', () => {
+  const t0 = performance.now(), b = search(state.env), ms = performance.now() - t0;
+  $('bestnote').textContent = `Searched about 20,000 designs in ${ms.toFixed(0)} ms. Best under 150 g: ${b.N} fins, ${b.t.toFixed(2)} mm thick, ${b.H.toFixed(1)} mm tall, ${b.tb.toFixed(2)} mm base, ${b.Tj.toFixed(1)} °C.`;
+  animateTo(b);
+});
+$('choke').addEventListener('click', () => animateTo({ N: 55, t: 0.5, H: state.H, tb: state.tb }));
+$('sparse').addEventListener('click', () => animateTo({ N: 6, t: 1.5, H: state.H, tb: state.tb }));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => update());
+new MutationObserver(() => update()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+
+// ---------- Beat the AI ----------
+// Pilot data (heat sink race, 3 Nov 2026): median of 2 runs per model, 12 tests each, same start design.
+const GAME = {
+  normal:  { opt: 82.52, script3: 83.08, llm: [['GPT-6.1 Sol', 0.01, 3.5], ['Haiku', 0.07, 5.5], ['Sonnet', 0.18, 6]] },
+  weakfan: { opt: 100.5, script3: 103.8, llm: [['Sonnet', 0.16, 7], ['GPT-6.1 Sol', 0.28, 9], ['Haiku', 0.30, 8.5]] },
+};
+const START = { N: 12, t: 1.0, H: 25, tb: 5 };
+const game = { on: false, tests: [] };
+const gEnvKeys = ['normal', 'weakfan'];
+function setHidden(h) {
+  hidden = h; $('panel').classList.toggle('hidden-mode', h);
+  $('charts').classList.toggle('locked', h);
+  const m = $('lockmsg'); if (h && !m) $('charts').insertAdjacentHTML('beforeend', '<div class="lockmsg" id="lockmsg">Hidden until you finish</div>'); if (!h && m) m.remove();
+  document.querySelectorAll('.legend, #flowtag').forEach(x => x.style.visibility = h ? 'hidden' : 'visible');
+  for (const id of ['best', 'choke', 'sparse', 'bestnote']) $(id).hidden = h;
+  for (const [k] of Object.entries(HS.ENVS)) $('env-' + k).disabled = h && !gEnvKeys.includes(k);
+}
+function startGame() {
+  game.on = true; game.tests = [];
+  if (!gEnvKeys.includes(state.env)) { state.env = 'normal'; [...envBox.children].forEach(x => x.setAttribute('aria-pressed', x.id === 'env-normal')); }
+  Object.assign(state, START);
+  $('m-explore').setAttribute('aria-pressed', false); $('m-game').setAttribute('aria-pressed', true);
+  $('game').hidden = false; $('g-reveal').hidden = true; $('g-reveal').innerHTML = ''; $('g-test').hidden = false;
+  $('g-title').textContent = 'Three tests. Beat the AI.';
+  setHidden(true); update();
+  const r = HS.evaluate(START.N, START.t / 1000, START.H / 1000, START.tb / 1000, state.env);
+  $('g-log').innerHTML = `<li><span>Start: 12 fins · 1.00 mm · 25 mm · 5 mm base</span><span>${r.Tj.toFixed(1)} °C</span></li>`;
+  $('g-test').textContent = 'Run test 1 of 3';
+}
+function endGame() {
+  game.on = false; setHidden(false);
+  $('m-explore').setAttribute('aria-pressed', true); $('m-game').setAttribute('aria-pressed', false);
+  $('game').hidden = true; update();
+}
+$('m-game').addEventListener('click', startGame);
+$('m-explore').addEventListener('click', endGame);
+$('g-quit').addEventListener('click', endGame);
+envBox.addEventListener('click', () => { if (game.on && game.tests.length === 0) startGame(); });
+$('g-test').addEventListener('click', () => {
+  const r = HS.evaluate(state.N, state.t / 1000, state.H / 1000, state.tb / 1000, state.env);
+  const over = r.mass > HS.MASS_CAP;
+  game.tests.push({ ...state, Tj: r.Tj, mass: r.mass, counts: !over && isFinite(r.Tj) });
+  $('g-log').insertAdjacentHTML('beforeend', `<li><span>Test ${game.tests.length}: ${state.N} fins · ${state.t.toFixed(2)} mm · ${state.H.toFixed(1)} mm · ${state.tb.toFixed(2)} mm base</span><span class="${over ? 'bad' : ''}">${isFinite(r.Tj) ? r.Tj.toFixed(1) : '–'} °C${over ? ` · ${r.mass.toFixed(0)} g, over budget` : ''}</span></li>`);
+  if (game.tests.length < 3) { $('g-test').textContent = `Run test ${game.tests.length + 1} of 3`; return; }
+  reveal();
+});
+function reveal() {
+  const G = GAME[state.env];
+  const start = HS.evaluate(START.N, START.t / 1000, START.H / 1000, START.tb / 1000, state.env).Tj;
+  const valid = game.tests.filter(x => x.counts), you = Math.min(start, ...valid.map(x => x.Tj));
+  const rows = [['You, 3 tests', you, 'you'], ['Simple script, 3 tests', G.script3, ''],
+    ...G.llm.map(([n, gap, k]) => [`${n}`, G.opt + gap, '', `12 tests; within 2 °C by test ${k}`]), ['Best possible', G.opt, '']];
+  const lo = G.opt - 1, hi = Math.max(start, ...rows.map(r => r[1])) + 1;
+  const place = rows.filter(r => r[1] < you - 0.005).length + 1;
+  $('g-title').textContent = you <= G.opt + 0.5 ? 'You found the optimum.' : you <= G.script3 ? 'You beat the script.' : 'The machines win this one.';
+  $('g-reveal').innerHTML = rows.map(([n, v, cls, sub]) => `<div class="rrow ${cls}"><span>${n}</span><span class="track"><span class="fill" style="width:${(100 * (hi - v) / (hi - lo)).toFixed(1)}%"></span></span><span class="num">${v.toFixed(1)} °C</span></div>${sub ? `<p class="rsub">${sub}</p>` : ''}`).join('') +
+    `<p class="rsub">Longer bar is cooler. The AI rows are the median of 2 runs from a 12-test pilot, so they had 4× your budget. The script starts from a textbook spacing formula and nudges one setting at a time.</p>
+     <div class="actions"><button class="btn primary" id="g-again">Play again</button><button class="btn" id="g-show">Show me the physics</button></div>`;
+  $('g-reveal').hidden = false; $('g-test').hidden = true;
+  $('g-again').addEventListener('click', startGame);
+  $('g-show').addEventListener('click', () => { const b = valid.length ? valid.reduce((a, c) => c.Tj < a.Tj ? c : a) : START; endGame(); Object.assign(state, { N: b.N, t: b.t, H: b.H, tb: b.tb }); update(); });
+  setHidden(false); $('panel').classList.remove('hidden-mode'); update();
+}
+
+resize(); update(); requestAnimationFrame(loop);
+if (!renderer) $('view').parentElement.insertAdjacentHTML('beforeend', '<p class="note" style="position:absolute;inset:40% 20px auto;text-align:center">3D view needs WebGL. The numbers and charts still work.</p>');
+})();
+</script>
+
+</body></html>

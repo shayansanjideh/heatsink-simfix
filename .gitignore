@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+eval/results/
+eval/report2.json
+eval/baselines/*/
+!eval/baselines/make_baselines.py
