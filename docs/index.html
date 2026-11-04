@@ -52,7 +52,7 @@ details summary:focus-visible{outline:2px solid var(--dot);outline-offset:2px}
   <header>
     <div class="eyebrow">Heat sink simulator-fix eval · round 2 · 60 runs</div>
     <h1>The best models knew what not to touch</h1>
-    <p class="lede">Each model got a heat sink simulator with one missing piece of physics (air leaking around the fins through the gap above them) and 12 bench measurements. Its job: fix the simulator so it predicts 30 held-out designs, including fin counts and fan speeds it never saw. Same 5 setups and 2 attempts for every model. The leak strength was different in each setup, so a textbook default doesn't work.</p>
+    <p class="lede">Each model got a heat sink simulator with one missing piece of physics (air leaking around the fins through the gap above them) and 12 simulated bench measurements (generated from the reference model plus noise; there is no physical rig). Its job: fix the simulator so it predicts 30 held-out designs, including fin counts and fan speeds it never saw. Same 5 setups and 2 attempts for every model. The leak strength was different in each setup, so a textbook default value fails on 4 of the 5.</p>
   </header>
 
   <section>
@@ -75,7 +75,8 @@ details summary:focus-visible{outline:2px solid var(--dot);outline-offset:2px}
     </details>
   </section>
   <p class="note"><a href="playground/" style="color:var(--dot);font-weight:600">Try the physics yourself in the Heat Sink Playground</a>: drag the fin count and watch the airflow choke, or play "Beat the AI" against the same models.</p>
-  <p class="note">The reference is an independent closed-form model (Teertstra channel Nusselt number, Muzychka–Yovanovich friction, a fan curve and a parallel bypass path), so these are textbook correlations, not CFD. Hidden leak coefficients were 0.6, 2.5, 1.0, 3.5 and 1.6. No run read the hidden answers.</p>
+  <p class="note">The reference is written independently but uses the same textbook correlations as the simulator (Teertstra channel Nusselt number, Muzychka–Yovanovich friction, a fan curve), plus a parallel bypass path for the leak. So everything except the leak was correct by design, and the models weren't told that; on real hardware, refitting a fan curve can be sensible. Not CFD. Hidden leak coefficients were 0.6, 2.5, 1.0, 3.5 and 1.6. No run read the hidden answers.</p>
+  <p class="note">Models: Claude Sonnet 5.5, Opus 5.5 and Haiku 5.5 via Claude Code at medium effort; GPT-6.1 Sol, GPT-6.1 Terra and GPT-6 Luna via Codex (effort not recorded). This compares model plus harness.</p>
 </div>
 <div class="tip" id="tip" hidden></div>
 
